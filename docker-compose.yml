@@ -1,0 +1,9 @@
+services:
+  gift-tracker:
+    build: .
+    container_name: telegram-nft-gift-tracker
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
