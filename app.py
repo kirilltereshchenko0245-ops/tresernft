@@ -23,10 +23,10 @@ async def main():
     client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
 
     try:
-        await client.start()
+        # Авторизация через бот-токен (без интерактивного ввода)
+        await client.start(bot_token=BOT_TOKEN)
         me = await client.get_me()
         log.info("MTProto session connected as %s", getattr(me, "username", None) or me.id)
-        log.warning("First start may require interactive phone/code login. Complete it in a terminal before deploying headlessly.")
 
         while True:
             try:
