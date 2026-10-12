@@ -5,8 +5,7 @@ from telethon.errors import FloodWaitError, RPCError
 from aiogram import Bot
 from config import (
     API_ID, API_HASH, BOT_TOKEN, PHONE_NUMBER, GROUP_ID, POLL_INTERVAL, SESSION_NAME,
-    GIFT_IDS, SEED_EXISTING, MAX_PAGES_PER_GIFT, LOG_LEVEL,
-    TRACK_NON_UPGRADED, NON_UPGRADED_TOPIC_NAME
+    GIFT_IDS, SEED_EXISTING, MAX_PAGES_PER_GIFT, LOG_LEVEL
 )
 from database import init_db, listing_exists, add_listing
 from gift_parser import get_gift_types, iter_listings
@@ -50,14 +49,13 @@ async def main():
             try:
                 gift_types = await get_gift_types(client, GIFT_IDS)
                 log.info("Gift types to scan: %d", len(gift_types))
-                
-                # Сканируем улучшенные подарки (за Stars)
                 for gift_type in gift_types:
                     try:
-                        async for listing in iter_listings(client, gift_type, MAX_PAGES_PER_GIFT, upgraded_only=True):
+                        async for listing in iter_listings(client, gift_type, MAX_PAGES_PER_GIFT):
                             exists = await listing_exists(listing["listing_key"])
                             if exists:
                                 continue
+                            # Seed first-run listings without flooding the group, if configured.
                             status = "seen" if SEED_EXISTING and not getattr(main, "_seed_complete", False) else "pending"
                             inserted = await add_listing(
                                 listing["listing_key"], listing["gift_id"], listing["title"],
@@ -65,38 +63,13 @@ async def main():
                             )
                             if not inserted or status == "seen":
                                 continue
-                            await publish(bot, GROUP_ID, listing, NON_UPGRADED_TOPIC_NAME)
+                            await publish(bot, GROUP_ID, listing)
                     except FloodWaitError as e:
                         log.warning("Telegram FloodWait: sleeping %s seconds", e.seconds)
                         await asyncio.sleep(e.seconds)
                     except (RPCError, Exception):
-                        log.exception("Error scanning upgraded gift type %s", getattr(gift_type, "id", "?"))
+                        log.exception("Error scanning gift type %s", getattr(gift_type, "id", "?"))
                         await asyncio.sleep(3)
-                
-                # Сканируем неулучшенные подарки (если включено)
-                if TRACK_NON_UPGRADED:
-                    log.info("Scanning non-upgraded gifts...")
-                    for gift_type in gift_types:
-                        try:
-                            async for listing in iter_listings(client, gift_type, MAX_PAGES_PER_GIFT, upgraded_only=False):
-                                exists = await listing_exists(listing["listing_key"])
-                                if exists:
-                                    continue
-                                status = "seen" if SEED_EXISTING and not getattr(main, "_seed_complete", False) else "pending"
-                                inserted = await add_listing(
-                                    listing["listing_key"], listing["gift_id"], listing["title"],
-                                    listing["price"], listing["slug"], status=status
-                                )
-                                if not inserted or status == "seen":
-                                    continue
-                                await publish(bot, GROUP_ID, listing, NON_UPGRADED_TOPIC_NAME)
-                        except FloodWaitError as e:
-                            log.warning("Telegram FloodWait: sleeping %s seconds", e.seconds)
-                            await asyncio.sleep(e.seconds)
-                        except (RPCError, Exception):
-                            log.exception("Error scanning non-upgraded gift type %s", getattr(gift_type, "id", "?"))
-                            await asyncio.sleep(3)
-                
                 main._seed_complete = True
             except Exception:
                 log.exception("Scan cycle failed")
