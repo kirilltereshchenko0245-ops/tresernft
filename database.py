@@ -1,5 +1,6 @@
 import os
 import aiosqlite
+from typing import Optional
 
 DB_PATH = os.getenv("DB_PATH", "data/gifts.db")
 
@@ -31,7 +32,7 @@ async def listing_exists(listing_key: str) -> bool:
         cur = await db.execute("SELECT 1 FROM listings WHERE listing_key=?", (listing_key,))
         return await cur.fetchone() is not None
 
-async def add_listing(listing_key: str, gift_id: str, title: str, price: int | None, slug: str | None, status="pending"):
+async def add_listing(listing_key: str, gift_id: str, title: str, price: Optional[int], slug: Optional[str], status="pending"):
     async with aiosqlite.connect(DB_PATH) as db:
         cur = await db.execute(
             "INSERT OR IGNORE INTO listings(listing_key,gift_id,title,price,slug,status) VALUES(?,?,?,?,?,?)",
@@ -60,5 +61,5 @@ async def save_topic(gift_id: str, title: str, thread_id: int):
         )
         await db.commit()
 
-async def mark_existing_as_seen(listing_key: str, gift_id: str, title: str, price: int | None, slug: str | None):
+async def mark_existing_as_seen(listing_key: str, gift_id: str, title: str, price: Optional[int], slug: Optional[str]):
     return await add_listing(listing_key, gift_id, title, price, slug, status="seen")

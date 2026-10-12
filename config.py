@@ -12,6 +12,7 @@ def required(name: str) -> str:
 API_ID = int(required("API_ID"))
 API_HASH = required("API_HASH")
 BOT_TOKEN = required("BOT_TOKEN")
+PHONE_NUMBER = os.getenv("PHONE_NUMBER", "").strip()  # Номер телефона для userbot (опционально)
 GROUP_ID = int(required("GROUP_ID"))
 POLL_INTERVAL = max(15, int(os.getenv("POLL_INTERVAL", "60")))
 SESSION_NAME = os.getenv("SESSION_NAME", "tracker_session")
@@ -19,3 +20,7 @@ GIFT_IDS = [int(x.strip()) for x in os.getenv("GIFT_IDS", "").split(",") if x.st
 SEED_EXISTING = os.getenv("SEED_EXISTING", "true").lower() in {"1", "true", "yes", "y"}
 MAX_PAGES_PER_GIFT = max(1, int(os.getenv("MAX_PAGES_PER_GIFT", "5")))
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+
+# Новые настройки для неулучшенных подарков
+TRACK_NON_UPGRADED = os.getenv("TRACK_NON_UPGRADED", "false").lower() in {"1", "true", "yes", "y"}
+NON_UPGRADED_TOPIC_NAME = os.getenv("NON_UPGRADED_TOPIC_NAME", "🎁 Неулучшенные подарки")
