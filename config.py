@@ -12,7 +12,8 @@ def required(name: str) -> str:
 API_ID = int(required("API_ID"))
 API_HASH = required("API_HASH")
 BOT_TOKEN = required("BOT_TOKEN")
-PHONE_NUMBER = os.getenv("PHONE_NUMBER", "").strip()  # Номер телефона для userbot (опционально)
+PHONE_NUMBER = os.getenv("PHONE_NUMBER", "").strip()  # Используется только для интерактивной первичной авторизации
+STRING_SESSION = os.getenv("STRING_SESSION", "").strip()  # Telethon StringSession; предпочтительно для хостинга
 GROUP_ID = int(required("GROUP_ID"))
 POLL_INTERVAL = max(15, int(os.getenv("POLL_INTERVAL", "60")))
 SESSION_NAME = os.getenv("SESSION_NAME", "tracker_session")

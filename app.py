@@ -7,7 +7,7 @@ from config import (
     API_ID, API_HASH, BOT_TOKEN, PHONE_NUMBER, GROUP_ID, POLL_INTERVAL, SESSION_NAME,
     GIFT_IDS, SEED_EXISTING, MAX_PAGES_PER_GIFT, LOG_LEVEL
 )
-from database import init_db, listing_exists, add_listing
+from database import init_db, listing_exists, add_listing, update_owner_metadata
 from gift_parser import get_gift_types, iter_listings
 from publisher import publish
 
@@ -23,25 +23,26 @@ async def main():
     client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
 
     try:
-        # Проверяем, указан ли номер телефона для userbot
-        if PHONE_NUMBER:
-            # Режим userbot - авторизация через номер телефона
+        if STRING_SESSION:
+            log.info("Starting with Telethon StringSession...")
+            await client.connect()
+            if not await client.is_user_authorized():
+                raise RuntimeError(
+                    "STRING_SESSION is invalid, expired, or revoked. "
+                    "Create a fresh StringSession and update the environment variable."
+                )
+        elif PHONE_NUMBER:
             log.info("Starting as userbot with phone number...")
             await client.start(phone=PHONE_NUMBER)
         else:
-            # Попытка автоматической авторизации через существующую сессию
-            log.info("Starting with existing session...")
-            try:
-                await client.start()
-            except Exception as e:
-                log.error("Failed to start with existing session: %s", e)
-                log.error("РЕШЕНИЕ: Вам нужно:")
-                log.error("1. Локально запустить: python app.py")
-                log.error("2. Ввести номер телефона и код подтверждения")
-                log.error("3. Загрузить созданный файл %s.session на сервер", SESSION_NAME)
-                log.error("ИЛИ добавить PHONE_NUMBER в .env (но это требует интерактивного ввода кода)")
-                raise
-        
+            log.info("Starting with existing .session file...")
+            await client.connect()
+            if not await client.is_user_authorized():
+                raise RuntimeError(
+                    f"No authorized Telegram session found. Upload {SESSION_NAME}.session "
+                    "or set STRING_SESSION. Do not set PHONE_NUMBER on a non-interactive host."
+                )
+
         me = await client.get_me()
         log.info("MTProto session connected as %s", getattr(me, "username", None) or me.id)
 
@@ -54,12 +55,14 @@ async def main():
                         async for listing in iter_listings(client, gift_type, MAX_PAGES_PER_GIFT):
                             exists = await listing_exists(listing["listing_key"])
                             if exists:
+                                # Refresh only the public owner/host fields returned by Telegram.
+                                await update_owner_metadata(listing["listing_key"], listing)
                                 continue
                             # Seed first-run listings without flooding the group, if configured.
                             status = "seen" if SEED_EXISTING and not getattr(main, "_seed_complete", False) else "pending"
                             inserted = await add_listing(
                                 listing["listing_key"], listing["gift_id"], listing["title"],
-                                listing["price"], listing["slug"], status=status
+                                listing["price"], listing["slug"], status=status, owner=listing
                             )
                             if not inserted or status == "seen":
                                 continue
