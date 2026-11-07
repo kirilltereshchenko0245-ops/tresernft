@@ -1,10 +1,11 @@
 import asyncio
 import logging
 from telethon import TelegramClient
+from telethon.sessions import StringSession
 from telethon.errors import FloodWaitError, RPCError
 from aiogram import Bot
 from config import (
-    API_ID, API_HASH, BOT_TOKEN, PHONE_NUMBER, GROUP_ID, POLL_INTERVAL, SESSION_NAME,
+    API_ID, API_HASH, BOT_TOKEN, PHONE_NUMBER, STRING_SESSION, GROUP_ID, POLL_INTERVAL, SESSION_NAME,
     GIFT_IDS, SEED_EXISTING, MAX_PAGES_PER_GIFT, LOG_LEVEL
 )
 from database import init_db, listing_exists, add_listing, update_owner_metadata
@@ -20,7 +21,8 @@ log = logging.getLogger("gift-tracker")
 async def main():
     await init_db()
     bot = Bot(BOT_TOKEN)
-    client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
+    session = StringSession(STRING_SESSION) if STRING_SESSION else SESSION_NAME
+    client = TelegramClient(session, API_ID, API_HASH)
 
     try:
         if STRING_SESSION:
