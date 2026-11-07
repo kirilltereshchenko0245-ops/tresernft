@@ -1,5 +1,7 @@
+import asyncio
 import logging
 from telethon import functions, types
+
 
 log = logging.getLogger(__name__)
 
@@ -85,10 +87,40 @@ def _owner_fields(unique_gift, users=None, chats=None):
     }
 
 
+async def _call_with_reconnect(client, request, *, attempts: int = 5):
+    """Retry a Telegram request after transient disconnects."""
+    last_error = None
+    for attempt in range(1, attempts + 1):
+        try:
+            if not client.is_connected():
+                log.warning("MTProto is disconnected; reconnecting (attempt %s/%s)", attempt, attempts)
+                await client.connect()
+                if not await client.is_user_authorized():
+                    raise RuntimeError("Telethon session is no longer authorized; check STRING_SESSION.")
+            return await client(request)
+        except (ConnectionError, OSError, asyncio.TimeoutError) as exc:
+            last_error = exc
+            log.warning(
+                "Telegram connection error on attempt %s/%s: %s",
+                attempt, attempts, exc
+            )
+            try:
+                await client.disconnect()
+            except Exception:
+                log.debug("Error while closing broken MTProto connection", exc_info=True)
+            if attempt < attempts:
+                await asyncio.sleep(min(2 ** attempt, 15))
+    raise ConnectionError(
+        f"Telegram connection failed after {attempts} attempts"
+    ) from last_error
+
+
 async def get_gift_types(client, configured_ids: list[int]):
     if configured_ids:
         return [types.StarGift(id=gift_id, sticker=None, stars=0) for gift_id in configured_ids]
-    result = await client(functions.payments.GetStarGiftsRequest(hash=0))
+    result = await _call_with_reconnect(
+        client, functions.payments.GetStarGiftsRequest(hash=0)
+    )
     gifts = _get(result, "gifts", default=[]) or []
     return [g for g in gifts if _get(g, "id") is not None]
 
@@ -105,9 +137,10 @@ def gift_type_id(gift_type):
 
 
 async def scan_resale_page(client, gift_id: int, offset: str):
-    return await client(functions.payments.GetResaleStarGiftsRequest(
+    request = functions.payments.GetResaleStarGiftsRequest(
         gift_id=gift_id, offset=offset, limit=100, stars_only=True,
-    ))
+    )
+    return await _call_with_reconnect(client, request)
 
 
 def _price_amount(price_obj):

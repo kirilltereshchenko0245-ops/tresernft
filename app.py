@@ -50,8 +50,19 @@ async def main():
 
         while True:
             try:
+                if not client.is_connected():
+                    log.warning("MTProto disconnected before scan cycle; reconnecting...")
+                    await client.connect()
+                    if not await client.is_user_authorized():
+                        raise RuntimeError("Telethon session is not authorized; check STRING_SESSION.")
+                    log.info("MTProto session reconnected successfully")
                 gift_types = await get_gift_types(client, GIFT_IDS)
                 log.info("Gift types to scan: %d", len(gift_types))
+                if SEED_EXISTING and not getattr(main, "_seed_complete", False):
+                    log.info(
+                        "Initial scan mode: existing listings are saved silently. "
+                        "Set SEED_EXISTING=false only if you intentionally want to publish old listings."
+                    )
                 for gift_type in gift_types:
                     try:
                         async for listing in iter_listings(client, gift_type, MAX_PAGES_PER_GIFT):
@@ -72,7 +83,7 @@ async def main():
                     except FloodWaitError as e:
                         log.warning("Telegram FloodWait: sleeping %s seconds", e.seconds)
                         await asyncio.sleep(e.seconds)
-                    except (RPCError, Exception):
+                    except Exception:
                         log.exception("Error scanning gift type %s", getattr(gift_type, "id", "?"))
                         await asyncio.sleep(3)
                 main._seed_complete = True
